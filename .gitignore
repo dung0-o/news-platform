@@ -1,0 +1,319 @@
+# ============================================================
+# .gitignore for News Intelligence Platform
+# Technologies: Python, dbt, FastAPI, Streamlit, Docker, GCP
+# ============================================================
+
+# ============================================================
+# Python & Virtual Environment
+# ============================================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dll
+*.dylib
+*.egg
+*.egg-info/
+dist/
+build/
+develop-eggs/
+downloads/
+eggs/
+parts/
+var/
+wheels/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+*.log
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+virtualenv/
+
+# ============================================================
+# Python Version / IDE
+# ============================================================
+.python-version
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/
+.vscode/
+*.iml
+*.user
+*.userosscache
+*.sln.docstates
+
+# Sublime Text specific
+*.sublime-project
+*.sublime-workspace
+.sublime/
+
+# ============================================================
+# Raw Data & Scraped Files (Large / Dynamic)
+# ============================================================
+raw_data/
+data/
+*.jsonl
+*.json
+*.csv
+*.parquet
+*.feather
+*.tsv
+!sample_data/  # If you want to keep sample data, create this folder
+
+# ============================================================
+# dbt (Data Build Tool)
+# ============================================================
+dbt_project/target/
+dbt_project/logs/
+dbt_project/dbt_packages/
+dbt_project/*.db
+dbt_project/*.duckdb
+dbt_project/*.sqlite
+dbt_project/profiles.yml  # Contains credentials!
+dbt_project/.user.yml
+dbt_project/.dbt/
+dbt_project/manifest.json
+dbt_project/run_results.json
+dbt_project/sources.json
+
+# ============================================================
+# Google Cloud / BigQuery Credentials
+# ============================================================
+*.key.json
+*.service-account.json
+*.gcp.json
+*.credentials.json
+service-account-*.json
+client_secret_*.json
+*.pem
+*.p12
+*.json
+!docs/*.json  # Only exclude root-level JSON, NOT docs
+
+# ============================================================
+# Environment Variables & Secrets
+# ============================================================
+.env
+.env.local
+.env.*.local
+.secrets
+secrets/
+*.secret
+config.local.*
+application-local.properties
+application-dev.properties
+settings.local.py
+
+# ============================================================
+# Docker
+# ============================================================
+.docker/
+docker-compose.override.yml
+docker-compose.*.yml
+*.log
+*.pid
+*.pid.lock
+.containerd/
+docker-data/
+volumes/
+
+# ============================================================
+# Cloud Run / Serverless Deployment
+# ============================================================
+service-account-key.json
+cloud-run-source-deploy-*
+Dockerfile.local
+*.tar.gz
+*.tgz
+
+# ============================================================
+# Streamlit
+# ============================================================
+.streamlit/secrets.toml  # Credentials!
+.streamlit/cache/
+.streamlit/uploaded_files/
+*.streamlit/
+__streamlit__/
+*.streamlit.log
+
+# ============================================================
+# FastAPI / Backend
+# ============================================================
+*.db
+*.sqlite3
+*.duckdb
+instance/
+app/__pycache__/
+tests/__pycache__/
+.pytest_cache/
+*.coverage
+htmlcov/
+cover/
+.tox/
+
+# ============================================================
+# Hugging Face / Model Files (Large)
+# ============================================================
+*.bin
+*.onnx
+*.h5
+*.pb
+*.pt
+*.pth
+*.torch
+*.joblib
+*.pickle
+models/
+model_cache/
+.huggingface/
+.cache/huggingface/
+
+# ============================================================
+# Upstash Redis (Local Cache Files - Avoid if not needed)
+# ============================================================
+*.rdb
+*.aof
+dump.rdb
+appendonly.aof
+redis-cache/
+
+# ============================================================
+# GitHub Actions & CI/CD
+# ============================================================
+.github/workflows/*.local.yml
+.github/workspace/
+.circleci/
+.travis.yml
+.jenkins/
+.gitlab-ci.yml
+*.ci.yml
+
+# ============================================================
+# Backup & Archive Files
+# ============================================================
+*.bak
+*.backup
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+\#*#
+.\#*
+core.*
+*.coredump
+
+# ============================================================
+# Windows / OS Specific
+# ============================================================
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# ============================================================
+# Project-Specific: News Intelligence Platform
+# ============================================================
+
+# Local scraped data (large files, do not commit)
+scraped_articles/
+news_data/
+outputs/
+exports/
+*.xlsx
+*.xls
+
+# Generated reports (automatically created by dashboard)
+reports/
+*.html
+*.pdf
+
+# dbt compiled SQL (regenerated every run, not needed in repo)
+dbt_project/compiled/
+dbt_project/semantic_manifest.json
+
+# Testing artifacts
+test_results/
+tmp/
+temp/
+sandbox/
+
+# ============================================================
+# PI-Agent (Coding Agent) 
+# ============================================================
+.pi/
+.pi-agent/
+.agent/
+pi-logs/
+agent_cache/
+
+# ============================================================
+# Log Files (Catch-all)
+# ============================================================
+logs/
+*.log
+log/
+debug.log
+error.log
+access.log
+*.out
+*.err
+nohup.out
+
+# ============================================================
+# Packaging & Distribution
+# ============================================================
+*.whl
+*.tar.gz
+*.zip
+*.rar
+*.7z
+*.gz
+*.bz2
+*.xz
+
+# ============================================================
+# Personal Notes & Scratch Files
+# ============================================================
+notes.md
+TODO.md
+scratch/
+test_*.py
+temp_*.py
+*_sandbox.py
+playground/
+
+# ============================================================
+# Jupyter Notebooks (Large outputs)
+# ============================================================
+.ipynb_checkpoints/
+*.ipynb
+!notebooks/*.ipynb  # Only keep notebooks explicitly in this folder
