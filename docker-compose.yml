@@ -1,0 +1,15 @@
+version: '3'
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+  streamlit:
+    image: streamlit/streamlit:latest
+    command: streamlit run /app/src/dashboard/app.py
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./src:/app/src

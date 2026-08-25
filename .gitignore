@@ -310,6 +310,7 @@ test_*.py
 temp_*.py
 *_sandbox.py
 playground/
+*.bat
 
 # ============================================================
 # Jupyter Notebooks (Large outputs)

@@ -39,14 +39,17 @@ WITH base AS (
     MD5(url) AS article_id,
     source_name,
     COALESCE(author, 'Unknown') AS author,
-    -- Clean title: trim whitespace and remove control characters
     TRIM(title) AS title,
-    -- Clean description: strip HTML tags and trim whitespace
     TRIM(REGEXP_REPLACE(description, r'<[^>]+>', '')) AS description,
+    TRIM(full_text) AS full_text,
+    enrichment_attempted,
+    enrichment_success,
+    parsing_method,
     url,
     -- Handle timezone parsing
     PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ', published_at) AS published_at,
     SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ', scraped_at) AS scraped_at,
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ', enriched_at) AS enriched_at,
     COALESCE(category, 'general') AS category,
     COALESCE(language, 'en') AS language
   FROM `my_project.bronze.raw_articles`
@@ -67,6 +70,11 @@ SELECT
   author,
   title,
   description,
+  full_text,
+  enrichment_attempted,
+  enrichment_success,
+  parsing_method,
+  enriched_at,
   url,
   published_at,
   scraped_at,
@@ -83,13 +91,22 @@ WHERE rn = 1;  -- Keep only the latest version of each URL
 -- Partitioned by publish_date (derived from published_at).
 -- Clustered by company_entity (the target of user searches).
 
-CREATE OR REPLACE TABLE `my_project.gold.article_features`
-PARTITION BY publish_date
-CLUSTER BY company_entity
-OPTIONS (
-  description = 'Business-ready features for sentiment analysis and dashboarding',
-  partition_expiration_days = 365
-) AS
+-- CTE to prepare the truncated input text once
+WITH prepared AS (
+  SELECT 
+    article_id,
+    title,
+    description,
+    url,
+    source_name,
+    published_at,
+    enrichment_success,
+    -- TRUNCATE HERE: 2000 characters = ~500 tokens (safe for BERT)
+    LEFT(COALESCE(full_text, description), 2000) AS model_input_text,
+  FROM `my_project.silver.cleaned_articles`
+  WHERE description IS NOT NULL 
+    AND TRIM(description) != ''
+)
 SELECT 
   article_id,
   -- Entity Extraction: Look for known companies in the title
@@ -109,9 +126,11 @@ SELECT
   -- Feature Engineering
   ARRAY_LENGTH(SPLIT(title, ' ')) AS title_word_count,
   ARRAY_LENGTH(SPLIT(description, ' ')) AS description_word_count,
-  
-  -- For model serving: concatenated input string
-  CONCAT(title, ' ', description) AS model_input_text,
+  ARRAY_LENGTH(SPLIT(model_input_text, ' ')) AS model_input_word_count,
+  model_input_text,
+
+  -- Enrichment metadata (useful for debugging and resume signaling)
+  enrichment_success AS text_is_full_content,
   
   -- Source tiering (for quality weighting)
   CASE 
@@ -131,6 +150,4 @@ SELECT
   title,
   description
 
-FROM `my_project.silver.cleaned_articles`
-WHERE description IS NOT NULL 
-  AND TRIM(description) != '';
+FROM prepared;

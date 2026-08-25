@@ -1,0 +1,12 @@
+requests
+beautifulsoup4
+feedparser
+fastapi
+uvicorn
+streamlit
+google-cloud-bigquery
+dbt-core
+redis
+pandas
+plotly
+googlenewsdecoder

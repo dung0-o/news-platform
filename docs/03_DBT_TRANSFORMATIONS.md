@@ -39,6 +39,7 @@ my_dbt_project/
   4. **Null Handling**: Use `COALESCE(author, 'Unknown')`. If `title` is null, drop the row entirely.
   5. **Generation**: Create `article_id` using `TO_HEX(MD5(url))`.
   6. **Partition/Cluster**: dbt will defer partitioning to the BigQuery DDL (set in `dbt_project.yml`). We just output the `SELECT`.
+  7. **Enrichment Pass-through**: Select the new columns `full_text`, `enrichment_attempted`, `enrichment_success`, `enriched_at`, and `parsing_method`.
 
 ### 3. Gold Model: `gold_article_features.sql`
 - **Purpose**: Extract business features and entities for ML and dashboards.
@@ -48,14 +49,16 @@ my_dbt_project/
      - Write a `CASE` statement checking `UPPER(title)` against a list: `'TESLA'`, `'APPLE'`, `'MICROSOFT'`, `'GOOGLE'`, `'AMAZON'`, `'NVIDIA'`, `'META'`, `'FACEBOOK'`.
      - If none match, output `'Other'`.
      - *Note: Keep this regex-based for now. We will expand the list later if we want.*
-  2. **Word Count**: 
-     - `ARRAY_LENGTH(SPLIT(title, ' '))` for word count.
-  3. **Model Input**: 
-     - Concatenate title and description: `CONCAT(title, ' ', description) AS model_input_text`.
+  2. **Model Input**: 
+     - Use `LEFT(COALESCE(full_text, description), 2000)` as the `model_input_text`. This prioritizes the rich full text scraped by BeautifulSoup, but gracefully falls back to the API description if enrichment fails.
+  3. **Word Count**: 
+     - `ARRAY_LENGTH(SPLIT(model_input_text, ' '))` for word count.
   4. **Source Priority**:
      - `CASE` to assign `1` for Tier 1 sources (Reuters, AP, Bloomberg), `2` for Tier 2 (Yahoo Finance, MarketWatch), `3` for everything else.
   5. **Placeholders**:
      - Add `sentiment_score`, `sentiment_label`, `model_confidence` as `NULL` columns (to be filled later by FastAPI).
+  6. **Enrichment Flag**:
+     - Pass `enrichment_success` as `text_is_full_content` to indicate the quality of the input text.
 
 ## dbt Materialization Strategy
 - **Staging**: `materialized='view'` (Cheap, doesn't store data).
