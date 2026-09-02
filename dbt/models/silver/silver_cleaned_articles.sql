@@ -22,7 +22,7 @@ WITH base AS (
     TRIM(title) AS title,
 
     -- Description: strip HTML tags and trim whitespace
-    TRIM(REGEXP_REPLACE(description, r'<[^>]+>', '')) AS description,
+    TRIM(REGEXP_REPLACE(description, '<[^>]+>', '')) AS description,
 
     -- Full text content (from enrichment)
     TRIM(full_text) AS full_text,

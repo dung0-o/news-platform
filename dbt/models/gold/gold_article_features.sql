@@ -47,13 +47,13 @@ SELECT
   -- Entity Extraction: Known companies in article titles
   -- ============================================================
   CASE
-    WHEN REGEXP_CONTAINS(UPPER(title), r'TESLA') THEN 'Tesla'
-    WHEN REGEXP_CONTAINS(UPPER(title), r'APPLE') THEN 'Apple'
-    WHEN REGEXP_CONTAINS(UPPER(title), r'MICROSOFT') THEN 'Microsoft'
-    WHEN REGEXP_CONTAINS(UPPER(title), r'GOOGLE|ALPHABET') THEN 'Google'
-    WHEN REGEXP_CONTAINS(UPPER(title), r'AMAZON') THEN 'Amazon'
-    WHEN REGEXP_CONTAINS(UPPER(title), r'NVIDIA') THEN 'NVIDIA'
-    WHEN REGEXP_CONTAINS(UPPER(title), r'META|FACEBOOK') THEN 'Meta'
+    WHEN REGEXP_CONTAINS(UPPER(title), 'TESLA') THEN 'Tesla'
+    WHEN REGEXP_CONTAINS(UPPER(title), 'APPLE') THEN 'Apple'
+    WHEN REGEXP_CONTAINS(UPPER(title), 'MICROSOFT') THEN 'Microsoft'
+    WHEN REGEXP_CONTAINS(UPPER(title), 'GOOGLE|ALPHABET') THEN 'Google'
+    WHEN REGEXP_CONTAINS(UPPER(title), 'AMAZON') THEN 'Amazon'
+    WHEN REGEXP_CONTAINS(UPPER(title), 'NVIDIA') THEN 'NVIDIA'
+    WHEN REGEXP_CONTAINS(UPPER(title), 'META|FACEBOOK') THEN 'Meta'
     ELSE 'Other'
   END AS company_entity,
 
