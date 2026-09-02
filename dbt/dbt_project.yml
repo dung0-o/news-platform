@@ -1,0 +1,29 @@
+name: 'news_platform'
+version: '1.0.0'
+config-version: 2
+
+profile: 'news_platform'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  news_platform:
+    staging:
+      +materialized: view
+    silver:
+      +materialized: table
+      +incremental_strategy: merge
+      +unique_key: url
+    gold:
+      +materialized: table
+      +incremental_strategy: insert_overwrite
+      +partition_by:
+          field: publish_date
+          data_type: date

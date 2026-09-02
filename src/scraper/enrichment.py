@@ -1,233 +1,129 @@
-"""Article enrichment using requests and BeautifulSoup.
-
-Fetches the full HTML body text from each article URL and extracts
-the long-form article content. Output is appended to the record
-with enrichment_attempted, enrichment_success, parsing_method,
-enriched_at, and full_text fields.
-"""
-
-import os
-import re
 import datetime
 import logging
-import time
 import random
-import requests
+import re
+import time
+import urllib.parse
+from typing import Any
+
 from bs4 import BeautifulSoup
+from curl_cffi import requests as curl_requests
 
 logger = logging.getLogger(__name__)
 
 HEADERS = {
-    'User-Agent': (
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/120.0.0.0 Safari/537.36'
-    ),
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate',
-    'Connection': 'keep-alive',
-    'Upgrade-Insecure-Requests': '1',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Cache-Control': 'max-age=0',
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Referer": "https://www.google.com/",
 }
 
-# Rotating User-Agents for retry attempts
-USER_AGENTS = [
-    (
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/120.0.0.0 Safari/537.36'
-    ),
-    (
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/120.0.0.0 Safari/537.36'
-    ),
-    (
-        'Mozilla/5.0 (X11; Linux x86_64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/120.0.0.0 Safari/537.36'
-    ),
-    (
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) '
-        'Gecko/20100101 Firefox/121.0'
-    ),
-]
-
-
-# Live blog URL patterns to detect and skip enrichment
 LIVE_BLOG_PATTERNS = [
-    'livecoverage/',
-    'liveblog/',
-    'live_updates/',
-    'breaking-news/',
-    'live/',
-    'liveblog/',
+    "livecoverage/",
+    "liveblog/",
+    "live_updates/",
+    "breaking-news/",
+    "live/",
 ]
 
-# Maximum number of enrichment requests to avoid rate limiting
-MAX_CONCURRENT = 5
+PAYWALL_DOMAINS = [
+    "washingtonpost.com",
+    "wsj.com",
+    "bloomberg.com",
+    "nytimes.com",
+    "ft.com",
+    "economist.com",
+    "businessinsider.com",
+    "telegraph.co.uk",
+    "thetimes.co.uk",
+    "theatlantic.com",
+    "newyorker.com",
+    "foreignaffairs.com",
+    "hbr.org",
+]
 
-# Maximum number of retry attempts per article
 MAX_RETRIES = 3
-
-# Base delay between retries (seconds)
 BASE_DELAY = 1.0
-
-# Minimum and maximum delay between retries (seconds)
 MIN_DELAY = 1.0
 MAX_DELAY = 10.0
 
-# Maximum number of enrichment requests to avoid rate limiting
-MAX_ENRICHMENT_ATTEMPTS = 50
-
 
 def _clean_article_text(raw_text: str) -> str:
-    """
-    Clean extracted article text by removing:
-    - 'Advertisement' labels
-    - Navigation prompts (e.g., 'Click here to return to FAST')
-    - Newsletters / app download prompts
-    - Repeated interface elements
-    - 'Show More / Show Less' lines
-    - CNA's 'FAST' interface text
-    """
+    """Remove noise lines (ads, UI prompts, social links) from extracted text."""
     if not raw_text:
-        return ''
+        return ""
 
-    lines = raw_text.split('\n')
-    cleaned_lines = []
-
-    # Patterns to skip (case-insensitive)
     skip_patterns = [
-        r'^Advertisement$',
-        r'^Advertisement\s*$',
-        r'^Click here to return to FAST$',
-        r'^Tap here to return to FAST$',
-        r'^Read a summary of this article on FAST\.$',
-        r'^Get bite-sized news via a new cards interface\. Give it a try\.$',
-        r'^Sign up for our newsletters',
-        r'^Get the CNA app',
-        r'^Get WhatsApp alerts',
-        r'^Join our channel for the top reads',
-        r'^Subscribe here',
-        r'^Download here',
-        r'^Join here',
-        r'^Also worth reading',
-        r'^Content is loading\.\.\.',
-        r'^Set CNA as your preferred source on Google$',
-        r'^Add CNA as a trusted source to help Google',
-        r'^Bookmark$',
-        r'^Share$',
-        r'^WhatsApp$',
-        r'^Telegram$',
-        r'^Facebook$',
-        r'^Twitter$',
-        r'^Email$',
-        r'^LinkedIn$',
-        r'^Show More$',
-        r'^Show Less$',
-        r'^FAST$',
-        r'^CNA Games$',
-        r'^Guess Word$',
-        r'^Crack the word, one row at a time$',
-        r'^Buzzword$',
-        r'^Create words using the given letters$',
-        r'^Mini Sudoku$',
-        r'^Tiny puzzle, mighty brain teaser$',
-        r'^Mini Crossword$',
-        r'^Small grid, big challenge$',
-        r'^Word Search$',
-        r'^Spot as many words as you can$',
-        r'^Expand to read the full story$',
-        r'^New: You can now listen to articles\.$',
-        r'^This audio is generated by an AI tool\.$',
-        r'^\s*$',  # empty lines
+        r"^Advertisement$",
+        r"^Click here to return to FAST$",
+        r"^Read a summary of this article on FAST\.$",
+        r"^Get bite-sized news via a new cards interface\. Give it a try\.$",
+        r"^Sign up for our newsletters",
+        r"^Get the CNA app",
+        r"^Get WhatsApp alerts",
+        r"^Join our channel for the top reads",
+        r"^Subscribe here",
+        r"^Download here",
+        r"^Join here",
+        r"^Also worth reading",
+        r"^Content is loading\.\.\.",
+        r"^\s*$",
+        r"^Show More$",
+        r"^Show Less$",
+        r"^Expand to read the full story$",
+        r"^This audio is generated by an AI tool\.$",
     ]
 
-    # Compile patterns for efficiency
-    compiled_patterns = [re.compile(p, re.IGNORECASE) for p in skip_patterns]
+    compiled = [re.compile(p, re.IGNORECASE) for p in skip_patterns]
+    cleaned_lines: list[str] = []
 
-    for line in lines:
-        line = line.strip()
-        # Skip if line matches any pattern
-        if not line:
+    for line in raw_text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
             continue
-
-        skip = False
-        for pattern in compiled_patterns:
-            if pattern.match(line):
-                skip = True
-                break
-
-        if skip:
+        if any(p.match(stripped) for p in compiled):
             continue
+        cleaned_lines.append(stripped)
 
-        cleaned_lines.append(line)
-
-    # Rejoin and trim extra whitespace
-    cleaned_text = '\n'.join(cleaned_lines).strip()
-    # Collapse multiple newlines into two max
-    cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)
-
-    return cleaned_text
+    cleaned_text = "\n".join(cleaned_lines).strip()
+    return re.sub(r"\n{3,}", "\n\n", cleaned_text)
 
 
 def _get_body_text(html: str) -> str:
-    """Extract article body text from HTML, returning >100 chars when possible."""
-    soup = BeautifulSoup(html, 'html.parser')
+    """Extract article body text from HTML, preferring >100 chars of real text."""
+    soup = BeautifulSoup(html, "html.parser")
 
-    # Remove script and style elements
-    for tag in soup(['script', 'style', 'nav', 'footer', 'header']):
+    for tag in soup(["script", "style", "nav", "footer", "header"]):
         tag.decompose()
 
-    # Try common article selectors in priority order
     selectors = [
-        'article',
-        'article .article-body',
-        'article .post-content',
-        'article .entry-content',
-        'article .post-body',
-        'article .content',
-        'article p',
-        '.post-content',
-        '.entry-content',
-        '.post-body',
-        '.content',
-        '#post-body',
-        '#article-body',
-        '#content',
-        '#main-content',
-        'main',
-        '.article-body',
-        '.post-content',
-        '.entry-content',
-        '.post-body',
-        '.content',
-        'div.article-content',
-        'div.post-content',
-        'div.entry-content',
-        'div.post-body',
-        'div.content',
-        'section.article-content',
-        'section.post-content',
-        'section.entry-content',
-        'section.post-body',
-        'section.content',
-        '[role="main"]',
-        '.article',
-        '.story-content',
-        '.article-content',
-        '.story-body',
-        '.news-content',
-        '.article-body',
-        '.content-area',
-        '.body-content',
-        '.article-body',
+        "article",
+        "article .article-body",
+        "article .post-content",
+        "article .entry-content",
+        "article .post-body",
+        "article .content",
+        "article p",
+        ".post-content",
+        ".entry-content",
+        ".post-body",
+        ".content",
+        "#post-body",
+        "#article-body",
+        "#content",
+        "#main-content",
+        "main",
+        ".article-body",
+        ".article",
+        ".story-content",
+        "[role='main']",
     ]
 
     for selector in selectors:
@@ -235,182 +131,205 @@ def _get_body_text(html: str) -> str:
         if elements:
             text_parts = []
             for el in elements:
-                text = el.get_text(separator='\n', strip=True)
+                text = el.get_text(separator="\n", strip=True)
                 if text and len(text) > 50:
                     text_parts.append(text)
-            return '\n'.join(text_parts)
+            return "\n".join(text_parts)
 
-    # Fallback: use first <article> or <div> with significant content
-    for tag_name in ['article', 'div', 'section']:
+    # Fallback: first <article> or <div> with >100 direct text chars
+    for tag_name in ("article", "div", "section"):
         tag = soup.find(tag_name)
         if tag:
-            # Check if this tag has enough direct text content (not just links/images)
-            text = tag.get_text(separator='\n', strip=True)
-            # Remove links to check for actual text
-            links_only = re.sub(r'\[.*?\]', '', text)
+            text = tag.get_text(separator="\n", strip=True)
+            links_only = re.sub(r"\[.*?\]", "", text)
             if len(links_only) > 100:
                 return text
 
-    # Last resort: strip out nav/footer/header and take remaining text
-    for tag_name in ['nav', 'footer', 'header', 'aside']:
+    # Last resort: strip nav/footer/header and take remaining text
+    for tag_name in ("nav", "footer", "header", "aside"):
         for el in soup.find_all(tag_name):
             el.decompose()
-    text = soup.get_text(separator='\n', strip=True)
-    return text
+    return soup.get_text(separator="\n", strip=True)
 
 
 def _determine_parser(url: str) -> str:
     """Classify parsing method based on domain."""
-    domain = url.lower().split('://')[1].split('/')[0] if '://' in url else ''
-    if 'reuters.com' in domain:
-        return 'reuters'
-    if 'bbc' in domain:
-        return 'bbc'
-    return 'generic'
+    parts = url.lower().split("://")[1].split("/")
+    domain = parts[0] if parts else ""
+    if "reuters.com" in domain:
+        return "reuters"
+    if "bbc" in domain:
+        return "bbc"
+    return "generic"
 
 
 def _is_live_blog(url: str) -> bool:
     """Check if URL is a live blog page that shouldn't be enriched."""
-    if '://' not in url:
+    if "://" not in url:
         return False
-    domain = url.lower().split('://')[1].split('/')[0]
-    path = url.lower().split('://')[1].split('/')[2] if len(url.lower().split('://')[1].split('/')) > 2 else ''
-    for pattern in LIVE_BLOG_PATTERNS:
-        if pattern in domain or pattern in path:
-            return True
-    return False
+    path = url.lower().split("://")[1].split("/")[2] if len(url.lower().split("://")[1].split("/")) > 2 else ""
+    domain = url.lower().split("://")[1].split("/")[0]
+    return any(p in domain or p in path for p in LIVE_BLOG_PATTERNS)
+
+
+def is_paywall_url(url: str) -> bool:
+    """Return True if the URL belongs to a known paywall domain."""
+    if not url:
+        return False
+    parsed = urllib.parse.urlparse(url)
+    domain = parsed.netloc.lower()
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return any(domain == pw or domain.endswith(f".{pw}") for pw in PAYWALL_DOMAINS)
 
 
 def _normalize_url(url: str) -> str:
     """Normalize URL to https:// and remove trailing slash."""
-    if url.startswith('http://'):
-        url = url.replace('http://', 'https://')
-    if url.endswith('/'):
-        url = url.rstrip('/')
-    return url
+    url = url.replace("http://", "https://")
+    return url.rstrip("/")
 
 
-def _retry_with_backoff(url: str, headers: dict, timeout: int = 15) -> requests.Response:
+def _retry_with_backoff(url: str, headers: dict, timeout: int = 30) -> str:
     """Make a request with retry logic and exponential backoff.
 
     Args:
-        url: URL to fetch
-        headers: Request headers
-        timeout: Request timeout in seconds
+        url: URL to fetch.
+        headers: Request headers.
+        timeout: Request timeout in seconds.
 
     Returns:
-        requests.Response object
+        Response text as a string.
 
     Raises:
-        requests.exceptions.RequestException: If all retries fail
+        Exception: If all retries fail.
     """
-    last_exception = None
-    current_headers = dict(headers)
-    
+    last_exception: Exception | None = None
+    session = curl_requests.Session(impersonate="chrome120", headers=headers)
+
     for attempt in range(MAX_RETRIES):
-        ua_index = attempt % len(USER_AGENTS)
-        current_headers['User-Agent'] = USER_AGENTS[ua_index]
-        
         try:
-            response = requests.get(url, headers=current_headers, timeout=timeout)
-            return response
-        except requests.exceptions.Timeout:
-            last_exception = f"Timeout after {timeout}s"
-            logger.debug(f"Timeout fetching {url[:80]} (attempt {attempt + 1}/{MAX_RETRIES}): {last_exception}")
-        except requests.exceptions.ConnectionError as e:
-            last_exception = f"Connection error: {e}"
-            logger.debug(f"Connection error fetching {url[:80]} (attempt {attempt + 1}/{MAX_RETRIES}): {last_exception}")
-        except requests.exceptions.HTTPError as e:
-            logger.debug(f"HTTP error fetching {url[:80]} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-            # Retry on 403 (bot detection) with different User-Agent
-            if e.response is not None and e.response.status_code == 403 and attempt < MAX_RETRIES - 1:
-                delay = min(BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5), MAX_DELAY)
-                logger.debug(f"Retrying {url[:60]} after 403 in {delay:.1f}s (attempt {attempt + 2}/{MAX_RETRIES})")
+            response = session.get(url, timeout=timeout, allow_redirects=True)
+            status = response.status_code
+
+            if status == 451:
+                raise Exception("Geo-blocked (451)")
+            if status == 401:
+                raise Exception("Unauthorized (401)")
+            if status in (403, 429):
+                impersonates = ["chrome110", "edge101", "safari15_5"]
+                session.impersonate = impersonates[attempt % len(impersonates)]
+                if attempt < MAX_RETRIES - 1:
+                    delay = min(
+                        BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5),
+                        MAX_DELAY,
+                    )
+                    logger.debug("Backing off %0.1fs for %s", delay, url[:60])
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise Exception(f"HTTP {status} after retries")
+
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "").lower()
+            if "text/html" not in content_type:
+                raise Exception(f"Non-HTML response: {content_type}")
+
+            return response.text
+
+        except Exception as exc:
+            last_exception = exc
+            logger.debug("Attempt %d failed for %s: %s", attempt + 1, url[:60], exc)
+            if attempt < MAX_RETRIES - 1:
+                delay = min(
+                    BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5),
+                    MAX_DELAY,
+                )
                 time.sleep(delay)
-                continue
-            elif e.response is not None and e.response.status_code >= 400:
-                raise
-        except requests.exceptions.RequestException as e:
-            last_exception = f"Request error: {e}"
-            logger.debug(f"Request error fetching {url[:80]} (attempt {attempt + 1}/{MAX_RETRIES}): {last_exception}")
 
-        # Exponential backoff with jitter
-        delay = min(BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5), MAX_DELAY)
-        logger.debug(f"Retrying {url[:60]} in {delay:.1f}s (attempt {attempt + 2}/{MAX_RETRIES})")
-        time.sleep(delay)
-
-    raise requests.exceptions.RequestException(f"All {MAX_RETRIES} retries failed: {last_exception}")
+    raise Exception(f"All {MAX_RETRIES} retries failed: {last_exception}")
 
 
-def enrich_articles(articles: list[dict]) -> list[dict]:
-    """
-    Enrich a list of article dicts with full_text via BeautifulSoup.
+def enrich_articles(articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Enrich a list of article dicts with full_text via BeautifulSoup.
 
     Modifies articles in place and returns the list.
+
+    Args:
+        articles: List of article dicts with 'url' keys.
+
+    Returns:
+        The same list with enriched fields populated.
     """
     for article in articles:
-        url = article.get('url', '')
+        url = article.get("url", "")
         if not url:
             continue
 
         enrichment_attempted = False
         enrichment_success = False
-        full_text = ''
-        parsing_method = ''
-        enriched_at = ''
+        full_text = ""
+        parsing_method = ""
+        enriched_at = ""
+
+        # Skip paywalls immediately
+        if is_paywall_url(url):
+            parsing_method = "paywall_skipped"
+            article["full_text"] = full_text
+            article["enrichment_attempted"] = enrichment_attempted
+            article["enrichment_success"] = enrichment_success
+            article["parsing_method"] = parsing_method
+            article["enriched_at"] = enriched_at
+            logger.debug("Skipped paywall URL: %s", url[:80])
+            continue
 
         # Skip live blog pages
         if _is_live_blog(url):
-            enrichment_attempted = False
-            enrichment_success = False
-            full_text = ''
-            parsing_method = _determine_parser(url)
-            enriched_at = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
-            article['full_text'] = full_text
-            article['enrichment_attempted'] = enrichment_attempted
-            article['enrichment_success'] = enrichment_success
-            article['parsing_method'] = parsing_method
-            article['enriched_at'] = enriched_at
+            parsing_method = "live_blog_skipped"
+            article["full_text"] = full_text
+            article["enrichment_attempted"] = enrichment_attempted
+            article["enrichment_success"] = enrichment_success
+            article["parsing_method"] = parsing_method
+            article["enriched_at"] = enriched_at
+            logger.debug("Skipped live blog URL: %s", url[:80])
             continue
 
         try:
             enrichment_attempted = True
 
-            # First attempt: standard request with retries
-            response = _retry_with_backoff(url, HEADERS, timeout=15)
-            response.raise_for_status()
-            html = response.text
-
+            html = _retry_with_backoff(url, HEADERS, timeout=30)
             raw_text = _get_body_text(html)
             parsing_method = _determine_parser(url)
             if raw_text:
                 cleaned = _clean_article_text(raw_text)
-                # Keep only if cleaned text has > 100 characters
                 if len(cleaned) > 100:
                     full_text = cleaned
                     enrichment_success = True
                 else:
                     enrichment_success = False
             else:
-                full_text = ''
                 enrichment_success = False
-            
+
             if not enrichment_success and len(full_text) > 0:
-                logger.warning(f"Partial enrichment for {url[:60]}: {len(full_text)} chars")
-        except Exception as e:
+                logger.warning(
+                    "Partial enrichment for %s: %d chars", url[:60], len(full_text)
+                )
+        except Exception as exc:
             enrichment_attempted = True
             enrichment_success = False
-            full_text = ''
-            parsing_method = ''
-            logger.warning(f"Enrichment failed for {url[:80]}: {e}")
+            parsing_method = ""
+            if "403" in str(exc) or "Cloudflare" in str(exc):
+                logger.debug("Enrichment blocked (likely bot protection) for %s", url[:60])
+            elif "paywall" in str(exc).lower():
+                logger.debug("Enrichment blocked by paywall for %s", url[:60])
+            else:
+                logger.warning("Enrichment failed for %s: %s", url[:80], exc)
 
-        # Set enriched_at only when enrichment was attempted
-        if enrichment_attempted:
-            enriched_at = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+        enriched_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-        # Update the article record
-        article['full_text'] = full_text
-        article['enrichment_attempted'] = enrichment_attempted
-        article['enrichment_success'] = enrichment_success
-        article['parsing_method'] = parsing_method
-        article['enriched_at'] = enriched_at
+        article["full_text"] = full_text
+        article["enrichment_attempted"] = enrichment_attempted
+        article["enrichment_success"] = enrichment_success
+        article["parsing_method"] = parsing_method
+        article["enriched_at"] = enriched_at
+
+    return articles

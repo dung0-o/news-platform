@@ -183,7 +183,6 @@ cover/
 *.torch
 *.joblib
 *.pickle
-models/
 model_cache/
 .huggingface/
 .cache/huggingface/

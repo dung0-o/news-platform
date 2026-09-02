@@ -14,9 +14,13 @@
 -- Partitioning is handled by the GCS folder structure (ingest_date).
 
 CREATE OR REPLACE EXTERNAL TABLE `my_project.bronze.raw_articles`
+WITH PARTITION COLUMNS (
+  ingest_date DATE
+)
 OPTIONS (
-  format = 'JSONL',
-  uris = ['gs://my-news-lake/bronze/news_api/*/*.jsonl']
+  format = 'NEWLINE_DELIMITED_JSON',
+  uris = ['gs://my-news-lake/*'],
+  hive_partition_uri_prefix = 'gs://my-news-lake/'
 );
 
 

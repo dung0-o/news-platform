@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: "{{ env_var('BQ_DATASET_NAME') }}"
+    tables:
+      - name: raw_articles
+        description: "External table pointing to GCS JSONL files"

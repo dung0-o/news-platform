@@ -6,7 +6,10 @@ uvicorn
 streamlit
 google-cloud-bigquery
 dbt-core
+dbt-bigquery
 redis
 pandas
 plotly
 googlenewsdecoder
+google-cloud-storage
+curl_cffi
