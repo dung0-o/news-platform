@@ -1,5 +1,3 @@
-"""Scrape financial news from Google News RSS feed and return structured records."""
-
 import datetime
 import logging
 from typing import Any
@@ -9,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from config import RSS_FEED_URL
 from enrichment import enrich_articles
+from utils import normalize_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ def scrape_google_news() -> list[dict[str, Any]]:
     for entry in feed.entries:
         title = entry.get("title", "")
         redirect_url = entry.get("link", "")
-        published_at = entry.get("published", "")
+        published_at = normalize_timestamp(entry.get('published', ''))
 
         # Decode the Google News redirect to the real article URL
         final_url = redirect_url

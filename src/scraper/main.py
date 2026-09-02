@@ -1,5 +1,3 @@
-"""Orchestrator: run scrapers, validate, and upload to GCS."""
-
 import datetime
 import json
 import logging
@@ -13,36 +11,9 @@ import google.cloud.storage
 from config import GCS_BUCKET_NAME
 from newsapi_scraper import scrape_newsapi
 from google_news_scraper import scrape_google_news
+from utils import set_source_id, validate_schema
 
 logger = logging.getLogger(__name__)
-
-REQUIRED_FIELDS = [
-    "source_id",
-    "source_name",
-    "title",
-    "description",
-    "url",
-    "published_at",
-    "scraped_at",
-]
-
-
-# Source ID mapping for auto-detection from URLs
-SOURCE_ID_MAP: dict[str, str] = {
-    "reuters.com": "reuters",
-    "bbc.com": "bbc",
-    "apnews.com": "ap",
-    "washingtonpost.com": "washington-post",
-    "wsj.com": "wsj",
-    "hollywoodreporter.com": "hollywood-reporter",
-    "kcci.com": "kcci",
-    "mlb.com": "mlb",
-    "cbsnews.com": "cbs-news",
-    "cnn.com": "cnn",
-    "nbcnews.com": "nbc-news",
-    "nytimes.com": "ny-times",
-    "bloomberg.com": "bloomberg",
-}
 
 
 def _gcs_client() -> google.cloud.storage.Client:
@@ -66,65 +37,6 @@ def _upload_jsonl(records: list[dict[str, Any]], date: str, hour: str) -> None:
         content_type="application/jsonl",
     )
     logger.info("Uploaded %d records to gcs://%s", len(records), GCS_BUCKET_NAME)
-
-
-def set_source_id(item: dict[str, Any]) -> None:
-    """Auto-detect source_id from URL if not already set.
-
-    Args:
-        item: Article dict to potentially populate source_id on.
-    """
-    if item.get("source_id"):
-        return
-
-    url = item.get("url", "")
-    if "://" not in url:
-        return
-
-    parsed = urllib.parse.urlparse(url)
-    domain = parsed.netloc.lower()
-    if ":" in domain:
-        domain = domain.split(":")[0]
-    if domain.startswith("www."):
-        domain = domain[4:]
-    item["source_id"] = SOURCE_ID_MAP.get(domain, domain)
-
-
-def validate_schema(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Validate all records against the required schema fields.
-
-    Logs warnings for records with missing required fields and returns
-    the list of validated records.
-
-    Args:
-        records: List of article dicts to validate.
-
-    Returns:
-        The same list with warnings logged for any issues found.
-    """
-    validated = []
-    for i, record in enumerate(records):
-        record_num = i + 1
-        issues: list[str] = []
-
-        for field in REQUIRED_FIELDS:
-            if not record.get(field):
-                issues.append(f"{field}: null/empty")
-
-        if record.get("enrichment_attempted"):
-            if not record.get("full_text"):
-                issues.append("full_text: null/empty (enrichment attempted)")
-            if not record.get("parsing_method"):
-                issues.append("parsing_method: null/empty")
-
-        if issues:
-            logger.warning(
-                "Record %d: missing fields - %s", record_num, ", ".join(issues)
-            )
-
-        validated.append(record)
-
-    return validated
 
 
 def main() -> None:

@@ -53,6 +53,7 @@ MAX_RETRIES = 3
 BASE_DELAY = 1.0
 MIN_DELAY = 1.0
 MAX_DELAY = 10.0
+MIN_TEXT = 150
 
 
 def _clean_article_text(raw_text: str) -> str:
@@ -301,7 +302,7 @@ def enrich_articles(articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
             parsing_method = _determine_parser(url)
             if raw_text:
                 cleaned = _clean_article_text(raw_text)
-                if len(cleaned) > 100:
+                if len(cleaned) > MIN_TEXT:
                     full_text = cleaned
                     enrichment_success = True
                 else:

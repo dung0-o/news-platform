@@ -1,5 +1,3 @@
-"""Scrape financial news from NewsAPI and return structured records."""
-
 import datetime
 import logging
 from typing import Any
@@ -9,6 +7,7 @@ from requests.exceptions import HTTPError
 
 from config import NEWS_API_KEY
 from enrichment import enrich_articles
+from utils import normalize_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ def scrape_newsapi() -> list[dict[str, Any]]:
             "description": article.get("description", ""),
             "url": article["url"],
             "url_to_image": article.get("urlToImage", ""),
-            "published_at": article["publishedAt"],
+            "published_at": normalize_timestamp(article["publishedAt"]),
             "full_text": "",
             "category": article.get("category", "general"),
             "language": article.get("language", "en"),

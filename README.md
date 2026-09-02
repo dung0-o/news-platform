@@ -84,7 +84,7 @@ flowchart TD
     %% ==============================================
     %% SECTION 6: DASHBOARD (Frontend)
     %% ==============================================
-    User["End User / Recruiter"] --> |"7. Visit Dashboard"| Streamlit["Streamlit Dashboard<br/>Streamlit Cloud"]
+    User["End User"] --> |"7. Visit Dashboard"| Streamlit["Streamlit Dashboard<br/>Streamlit Cloud"]
     Streamlit --> |"8. HTTP Request (/predict, /anomalies)"| FastAPI
 
     %% ==============================================
