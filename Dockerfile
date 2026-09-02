@@ -1,12 +1,21 @@
-FROM tiangolo/uvicorn-gunicorn-fastapi:python3.8-slim
+FROM python:3.11-slim
 
-COPY ./src /app/src
-COPY ./requirements.txt /app/requirements.txt
+WORKDIR /app
 
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# System deps for BigQuery client
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app/src
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements-api.txt
 
-EXPOSE 8000
+COPY app/ app/
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Non-root user for Cloud Run
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8080
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

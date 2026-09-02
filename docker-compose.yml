@@ -4,12 +4,19 @@ services:
     build: .
     ports:
       - "8000:8000"
+    environment:
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - BIGQUERY_DATASET=${BIGQUERY_DATASET:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      - UPSTASH_REDIS_URL=${UPSTASH_REDIS_URL:-}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY:-}
+      - HUGGINGFACE_MODEL_ID=${HUGGINGFACE_MODEL_ID:-}
     volumes:
-      - ./src:/app/src
+      - ./src/api:/app/src
   streamlit:
     image: streamlit/streamlit:latest
-    command: streamlit run /app/src/dashboard/app.py
+    command: streamlit run /app/src/app.py
     ports:
       - "8501:8501"
     volumes:
-      - ./src:/app/src
+      - ./src/dashboard:/app/src

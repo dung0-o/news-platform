@@ -1,0 +1,20 @@
+# FastAPI
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+
+# BigQuery
+google-cloud-bigquery==3.21.0
+
+# Redis
+httpx==0.28.1
+
+# Validation
+pydantic==2.9.2
+pydantic-settings==2.3.4
+
+# HTTP server
+structlog==24.2.0
+
+# Testing
+pytest==8.2.1
+pytest-asyncio==0.23.8

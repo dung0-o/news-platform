@@ -126,36 +126,48 @@ flowchart TD
 ```
 news-platform/
 ├── src/
-│   ├── scraper/           # News scraping + enrichment service
-│   │   ├── main.py        # Orchestrator: runs scrapers, validates, uploads to GCS
-│   │   ├── config.py      # Configuration via environment variables
-│   │   ├── newsapi_scraper.py     # Scrape from NewsAPI
-│   │   ├── google_news_scraper.py # Scrape from Google News RSS
-│   │   └── enrichment.py          # BeautifulSoup HTML body extraction
-│   ├── api/               # FastAPI backend
-│   │   └── main.py        # REST endpoints: /predict, /anomalies, /health
-│   └── dashboard/         # Streamlit frontend
-│       └── app.py         # Interactive dashboard with charts & KPIs
-├── dbt/                   # Data transformation pipeline
+│   ├── scraper/                # News scraping + enrichment service
+│   │   ├── main.py                 # Orchestrator: runs scrapers, validates, uploads to GCS
+│   │   ├── config.py               # Configuration via environment variables
+│   │   ├── newsapi_scraper.py      # Scrape from NewsAPI
+│   │   ├── google_news_scraper.py  # Scrape from Google News RSS
+│   │   └── enrichment.py           # BeautifulSoup HTML body extraction
+│   │
+│   ├── api/                    # FastAPI backend (refactored from src/api/)
+│   │   ├── main.py                 # REST endpoints: /predict, /anomalies, /health
+│   │   ├── config.py               # Environment variable management
+│   │   ├── database.py             # BigQuery connection & query helpers
+│   │   ├── cache.py                # Upstash Redis client
+│   │   ├── hf_client.py            # Hugging Face inference client
+│   │   └── schemas.py              # Pydantic request/response models
+│   │
+│   └── dashboard/              # Streamlit frontend
+│       └── app.py                  # Interactive dashboard with charts & KPIs
+│
+├── dbt/                        # Data transformation pipeline
 │   ├── models/
-│   │   ├── staging/       # stg_raw_articles (view)
-│   │   ├── silver/        # silver_cleaned_articles (merge)
-│   │   └── gold/          # gold_article_features (insert_overwrite)
-│   ├── tests/             # dbt generic tests (not_null, unique, accepted_values)
-│   ├── dbt_project.yml    # Project config + materialization settings
-│   └── profiles.yml       # BigQuery connection profile
-├── .github/workflows/     # GitHub Actions CI/CD
-│   └── scrape.yml         # Cron job: scrape → dbt transform
-├── docs/                  # Architecture documentation
+│   │   ├── staging/                # stg_raw_articles (view)
+│   │   ├── silver/                 # silver_cleaned_articles (merge)
+│   │   └── gold/                   # gold_article_features (insert_overwrite)
+│   ├── tests/                      # dbt generic tests (not_null, unique, accepted_values)
+│   ├── dbt_project.yml             # Project config + materialization settings
+│   └── profiles.yml                # BigQuery connection profile
+│
+├── .github/workflows/          # GitHub Actions CI/CD
+│   └── scrape.yml                  # Cron job: scrape → dbt transform
+│
+├── docs/                       # Architecture documentation
 │   ├── 00_ARCHITECTURE_OVERVIEW.md
 │   ├── 01_RAW_JSON_SCHEMA.md
 │   ├── 03_DBT_TRANSFORMATIONS.md
 │   ├── 04_FASTAPI_SPEC.md
 │   └── 05_DASHBOARD_WIREFRAME.md
-├── docker-compose.yml     # Local development stack
-├── requirements.txt       # Python dependencies
-├── .env.example           # Required environment variables
-└── .env                   # Local environment overrides
+│
+├── docker-compose.yml          # Local development stack
+├── requirements-api.txt        # Scraper dependencies for Github Actions
+├── requirements-scraper.txt    # API dependencies for Docker
+├── .env.example                # Required environment variables
+└── .env                        # Local environment overrides
 ```
 
 ## Endpoints
@@ -237,8 +249,10 @@ gcloud run deploy news-api \
   --timeout 300s \
   --set-env-vars "GCP_PROJECT_ID=..." \
   --set-env-vars "BIGQUERY_DATASET=..." \
+  --set-env-vars "GOOGLE_APPLICATION_CREDENTIALS=..." \
   --set-env-vars "UPSTASH_REDIS_URL=..." \
-  --set-env-vars "HUGGINGFACE_API_KEY=..."
+  --set-env-vars "HUGGINGFACE_API_KEY=..." \
+  --set-env-vars "HUGGINGFACE_MODEL_ID=..."
 ```
 
 ## Deployment Goal
