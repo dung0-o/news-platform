@@ -35,10 +35,10 @@ WITH base AS (
     -- URL (must not be null)
     url,
 
-    -- Timestamps: handle timezone parsing safely
-    PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ', published_at) AS published_at,
-    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ', scraped_at) AS scraped_at,
-    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ', enriched_at) AS enriched_at,
+    -- Timestamps: already TIMESTAMP in staging, use directly
+    published_at,
+    scraped_at,
+    enriched_at,
 
     -- Category: COALESCE to 'general' if missing
     COALESCE(category, 'general') AS category,
