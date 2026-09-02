@@ -81,4 +81,4 @@ SELECT
   language
 
 FROM deduped
-WHERE rn = 1;  -- Keep only the latest version of each URL
+WHERE rn = 1  -- Keep only the latest version of each URL
