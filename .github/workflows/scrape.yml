@@ -1,7 +1,5 @@
 name: Scrape & Transform
 
-timeout-minutes: 30
-
 on:
   schedule:
     - cron: '0 */2 * * *' # every 2 hours
@@ -10,6 +8,11 @@ on:
 jobs:
   scrape-and-transform:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,8 +26,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Create GCP service account key file
-        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: '${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ vars.GCP_SERVICE_ACCOUNT }}'
 
       - name: Run scraper → GCS
         env:
@@ -32,7 +39,6 @@ jobs:
           RSS_FEED_URL: ${{ secrets.RSS_FEED_URL }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
         run: python src/scraper/main.py
 
       - name: Run dbt models (Silver + Gold)

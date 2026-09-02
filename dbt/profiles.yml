@@ -3,10 +3,9 @@ news_platform:
   outputs:
     prod:
       type: bigquery
-      method: service-account-json
+      method: oauth
       project: "{{ env_var('GCP_PROJECT_ID') }}"
       dataset: "{{ env_var('BQ_DATASET_NAME') }}"
       threads: 4
       timeout_seconds: 300
       location: US
-      keyfile: /tmp/gcp-key.json

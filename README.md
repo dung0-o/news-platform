@@ -4,31 +4,93 @@ An automated pipeline that scrapes financial news, processes it through a data l
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Real-Time News Intelligence Platform                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────────┐    ┌──────────────────────────────────────────────┐       │
-│  │  GitHub      │    │           FastAPI Backend                    │       │
-│  │  Actions     │───▶│  /predict  /anomalies  /health              │       │
-│  │  (cron: 2h)  │    │  + Upstash Redis Cache (6h TTL)             │       │
-│  └──────────────┘    └──────────────────┬───────────────────────────┘       │
-│                                        │                                   │
-│  ┌──────────────┐    ┌──────────────────┴───────────────────────────┐       │
-│  │  Scraper     │    │           Streamlit Dashboard                │       │
-│  │  Service     │    │  KPI Tiles │ Time-Series │ Word Cloud │ Feed │       │
-│  └──────────────┘    └──────────────────┬───────────────────────────┘       │
-│                                        │                                   │
-│  ┌──────────────┐    ┌──────────────────┴───────────────────────────┐       │
-│  │  GCS (Bronze)│───▶│  BigQuery (Silver/Gold)  ◀───  HuggingFace   │       │
-│  │  JSONL files │    │  • stg_raw_articles (view)                   │       │
-│  │              │    │  • silver_cleaned_articles (merge)           │       │
-│  └──────────────┘    │  • gold_article_features (insert_overwrite) │       │
-│                      │  • Sentiment predictions + model confidence │       │
-│                      └─────────────────────────────────────────────┘       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    %% ==============================================
+    %% SECTION 1: ORCHESTRATION & SCHEDULING
+    %% ==============================================
+    subgraph GH["GitHub Actions (CI/CD)"]
+        direction LR
+        Cron["Cron Trigger<br/>Every 30 mins"] --> Runner["GitHub Runner"]
+        Runner --> |"1. Run Python"| Scraper
+        Runner --> |"2. Run dbt"| DbtRunner["dbt Core"]
+    end
+
+    %% ==============================================
+    %% SECTION 2: DATA SOURCES
+    %% ==============================================
+    subgraph Sources["External Data Sources"]
+        NewsAPI["NewsAPI<br/>(100 req/day)"]
+        RSS["Google News RSS<br/>(Unlimited)"]
+        HTML["Website HTML<br/>(Enrichment)"]
+    end
+
+    %% ==============================================
+    %% SECTION 3: SCRAPER
+    %% ==============================================
+    subgraph Scraper["Python Scraper Module"]
+        direction LR
+        Fetcher["curl_cffi + BS4<br/>TLS Impersonation"] --> Cleaner["Text Cleaner<br/>(Boilerplate Removal)"]
+        Cleaner --> Validator["Schema Validator"]
+    end
+
+    NewsAPI --> Scraper
+    RSS --> Scraper
+    HTML --> Scraper
+
+    %% ==============================================
+    %% SECTION 4: DATA LAKE (GCS)
+    %% ==============================================
+    subgraph GCP["Google Cloud Platform (Free Tier)"]
+        direction TB
+        subgraph DataLake["Cloud Storage (Bronze Layer)"]
+            GCS_Bucket["Raw JSONL Files<br/>gs://.../ingest_date=YYYY-MM-DD/"]
+        end
+
+        subgraph Warehouse["BigQuery (Silver & Gold Layers)"]
+            BQ_Ext["External Table<br/>bronze.raw_articles"]
+            BQ_Silver["Silver Table<br/>Cleaned &amp; Deduped"]
+            BQ_Gold["Gold Table<br/>Features + ML Input"]
+        end
+    end
+
+    %% Upload Flow
+    Scraper --> |"3. Upload JSONL"| GCS_Bucket
+
+    %% dbt Transform Flow
+    GCS_Bucket -.-> |"External Table Points to GCS"| BQ_Ext
+    DbtRunner --> |"4. dbt run (Incremental)"| BQ_Ext
+    BQ_Ext --> |"SQL Transform"| BQ_Silver
+    BQ_Silver --> |"SQL Transform"| BQ_Gold
+
+    %% ==============================================
+    %% SECTION 5: SERVING & ML (FastAPI)
+    %% ==============================================
+    subgraph Serving["Backend &amp; ML Serving"]
+        direction LR
+        FastAPI["FastAPI API<br/>Google Cloud Run"]
+        Redis[("Upstash Redis<br/>Cache")]
+        HF["Hugging Face<br/>Inference API<br/>(BERT Sentiment)"]
+    end
+
+    BQ_Gold --> |"5. Query via BigQuery Client"| FastAPI
+
+    FastAPI --> |"6. Check Cache"| Redis
+    Redis --> |"Cache Hit"| FastAPI
+    FastAPI --> |"Cache Miss"| HF
+    HF --> |"Return Sentiment"| FastAPI
+    FastAPI --> |"Store Result"| Redis
+
+    %% ==============================================
+    %% SECTION 6: DASHBOARD (Frontend)
+    %% ==============================================
+    User["End User / Recruiter"] --> |"7. Visit Dashboard"| Streamlit["Streamlit Dashboard<br/>Streamlit Cloud"]
+    Streamlit --> |"8. HTTP Request (/predict, /anomalies)"| FastAPI
+
+    %% ==============================================
+    %% SECURITY FLOW
+    %% ==============================================
+    GH -.-> |"OIDC / Workload Identity Federation"| GCP
 ```
 
 ## Data Flow (High-Level)
