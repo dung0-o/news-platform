@@ -4,12 +4,22 @@ from __future__ import annotations
 
 import structlog
 import httpx
+import re
 from config import settings
 
 logger = structlog.get_logger(__name__)
 
 
 HF_BASE_URL = "https://router.huggingface.co/hf-inference/models"
+
+
+def clean_text_for_hf(text: str) -> str:
+    """Final safety guard: ensure text is safe for API call."""
+    if not text:
+        return ""
+    text = text.strip()
+    text = re.sub(r'[\x00-\x1f\x7f]', '', text)
+    return text[:1500]
 
 
 def query_sentiment(text: str) -> float | None:
@@ -22,7 +32,7 @@ def query_sentiment(text: str) -> float | None:
     try:
         resp = client.post(
             f"{HF_BASE_URL}/{settings.huggingface_model_id}",
-            json={"inputs": text},
+            json={"inputs": clean_text_for_hf(text)},
             headers={
                 "Authorization": f"Bearer {settings.huggingface_api_key}",
                 "Content-Type": "application/json",

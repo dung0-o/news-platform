@@ -32,8 +32,24 @@ WITH prepared AS (
     enrichment_success,
 
     -- Model input text: prefer full_text from enrichment, fallback to description
-    -- Truncated to 2000 chars (~500 tokens) for BERT input
-    LEFT(COALESCE(full_text, description), 2000) AS model_input_text
+    -- --------------------------------------------------------
+    -- 1. Remove control characters (ASCII 0-31, except tab/newline)
+    -- 2. Collapse multiple spaces/newlines into a single space
+    -- 3. Trim leading/trailing whitespace
+    -- 4. Truncate to 1500 characters (safe for BERT)
+    -- --------------------------------------------------------
+    LEFT(
+      REGEXP_REPLACE(
+        REGEXP_REPLACE(
+          COALESCE(full_text, description),
+          -- Remove control chars (except newline \n and tab \t)
+          r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', ''
+        ),
+        -- Collapse multiple whitespace chars into a single space
+        r'\s+', ' '
+      ),
+      1500
+    ) AS model_input_text
 
   FROM {{ ref('silver_cleaned_articles') }}
   WHERE description IS NOT NULL

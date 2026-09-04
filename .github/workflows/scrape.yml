@@ -2,7 +2,7 @@ name: Scrape & Transform
 
 on:
   schedule:
-    - cron: '0 */2 * * *' # every 2 hours
+    - cron: '43 * * * *'  # every hour
   workflow_dispatch:      # Manual trigger for debugging
 
 jobs:
