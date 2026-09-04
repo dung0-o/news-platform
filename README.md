@@ -95,7 +95,7 @@ flowchart TD
 
 ## Data Flow (High-Level)
 
-1. **Scrape & Enrich** → GitHub Actions (cron every 2 hours) runs the Python scraper to fetch news from **NewsAPI** and **Google News RSS feeds**. Using `requests` and `BeautifulSoup`, it visits article URLs to extract the **full HTML body text** (enrichment), augmenting raw metadata with long-form content.
+1. **Scrape & Enrich** → GitHub Actions (cron every 2 hours) runs the Python scraper to fetch news from **NewsAPI** and **Google News RSS feeds**. Using `curl_cffi` and `BeautifulSoup`, it visits article URLs to extract the **full HTML body text** (enrichment), augmenting raw metadata with long-form content.
 2. **Land (Bronze)** → Raw JSONL is stored in **Google Cloud Storage** as the Bronze layer, partitioned by date.
 3. **Transform (ELT)** → **dbt** runs SQL in **BigQuery** to:
    - Clean and deduplicate raw data (Silver layer).
@@ -111,7 +111,7 @@ flowchart TD
 | Layer | Tool | Hosting |
 | :--- | :--- | :--- |
 | Orchestration | GitHub Actions (cron schedule) | GitHub (free) |
-| Data Extraction (APIs) | `requests`, `feedparser`, `beautifulsoup4` | GitHub Runner |
+| Data Extraction (APIs) | `curl_cffi`, `feedparser`, `beautifulsoup4` | GitHub Runner |
 | Data Lake (Bronze) | Google Cloud Storage (GCS) | GCP Free Tier (5 GB) |
 | Data Warehouse (Silver/Gold) | Google BigQuery | GCP Free Tier (10 GB + 1 TB queries/mo) |
 | Transformations | dbt Core | Runs locally, executes in BigQuery |
@@ -142,7 +142,8 @@ news-platform/
 │   │   └── schemas.py              # Pydantic request/response models
 │   │
 │   └── dashboard/              # Streamlit frontend
-│       └── app.py                  # Interactive dashboard with charts & KPIs
+│       ├── app.py                  # Interactive dashboard with charts & KPIs
+│       └── config.py               # Environment variable management
 │
 ├── dbt/                        # Data transformation pipeline
 │   ├── models/
@@ -163,9 +164,10 @@ news-platform/
 │   ├── 04_FASTAPI_SPEC.md
 │   └── 05_DASHBOARD_WIREFRAME.md
 │
-├── docker-compose.yml          # Local development stack
+├── requirements.txt            # Dashboard dependencies for Streamlit Cloud
 ├── requirements-api.txt        # Scraper dependencies for Github Actions
-├── requirements-scraper.txt    # API dependencies for Docker
+├── requirements-scraper.txt    # Backend API dependencies for Docker
+├── requirements-dev.txt        # Python dependencies for local development
 ├── .env.example                # Required environment variables
 └── .env                        # Local environment overrides
 ```
@@ -187,7 +189,7 @@ Returns sentiment trend and average score for a specific company over a given nu
 
 **Cache:** Upstash Redis with key `predict:{company}:{days}`, TTL 6 hours.
 
-### `GET /anomalies?hours=N&threshold=T`
+### `GET /anomalies?days=N&threshold=T`
 
 Returns articles with extreme sentiment shifts. Useful for breaking news alerts.
 
@@ -195,10 +197,10 @@ Returns articles with extreme sentiment shifts. Useful for breaking news alerts.
 
 | Parameter | Type | Required | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `hours` | Integer | No | 24 | Lookback window in hours. |
+| `days` | Integer | No | 1 | Lookback window in days. |
 | `threshold` | Float | No | 0.5 | Sentiment change threshold. |
 
-**Cache:** Upstash Redis with key `anomalies:{hours}:{threshold}`, TTL 1 hour.
+**Cache:** Upstash Redis with key `anomalies:{days}:{threshold}`, TTL 6 hours.
 
 ### `GET /health`
 
@@ -216,7 +218,7 @@ cp .env.example .env
 # Edit .env and fill in your API keys
 
 # 3. Install dependencies
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # 4. Run the scraper (one-time)
 python src/scraper/main.py

@@ -9,7 +9,6 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import settings
 from database import (
     query_predict,
     query_anomalies,
@@ -145,7 +144,7 @@ def create_app() -> FastAPI:
         )
         return response
 
-    # ---- /anomalies (unchanged, but we might want similar logic) ----
+    # ---- /anomalies ----
     @app.get(
         "/anomalies",
         response_model=AnomalyResponse,
@@ -153,11 +152,11 @@ def create_app() -> FastAPI:
         summary="Get anomalous sentiment shifts",
     )
     def anomalies(
-        hours: int = Query(24, ge=1, le=720, description="Lookback window in hours"),
+        days: int = Query(24, ge=1, le=7, description="Lookback window in days"),
         threshold: float = Query(0.5, ge=0.1, le=5.0, description="Sentiment change threshold"),
     ) -> AnomalyResponse:
         """Return articles with extreme sentiment shifts (breaking news)."""
-        cache_key = f"anomalies:{hours}:{threshold}"
+        cache_key = f"anomalies:{days}:{threshold}"
         cached = redis.get(cache_key)
 
         if cached:
@@ -166,7 +165,7 @@ def create_app() -> FastAPI:
 
         logger.info("Cache miss — fetching anomalies", cache_key=cache_key)
 
-        results = query_anomalies(hours=hours, threshold=threshold)
+        results = query_anomalies(days=days, threshold=threshold)
         enriched = []
         for anomaly in results:
             enriched.append({
@@ -180,16 +179,16 @@ def create_app() -> FastAPI:
             })
 
         response = AnomalyResponse(
-            lookback_hours=hours,
+            lookback_days=days,
             threshold=threshold,
             anomalies=enriched,
         )
 
-        redis.set(cache_key, response.model_dump_json(), ttl=3600)
-        logger.info("Anomalies completed", hours=hours, threshold=threshold, count=len(enriched))
+        redis.set(cache_key, response.model_dump_json(), ttl=21600)
+        logger.info("Anomalies completed", days=days, threshold=threshold, count=len(enriched))
         return response
 
-    # ---- /health (unchanged) ----
+    # ---- /health ----
     @app.get(
         "/health",
         response_model=HealthResponse,

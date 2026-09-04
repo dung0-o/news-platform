@@ -69,29 +69,29 @@ GET /predict?company=Tesla&days=30
 
 ## Endpoint 2: `GET /anomalies`
 
-**Description**: Returns articles with extreme sentiment shifts (high volatility) detected in the last N hours. Useful for "breaking news" alerts.
+**Description**: Returns articles with extreme sentiment shifts (high volatility) detected in the last N days. Useful for "breaking news" alerts.
 
 **Request Parameters** (Query String):
 
 | Parameter | Type | Required | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `hours` | Integer | No | 24 | Lookback window in hours. |
+| `days` | Integer | No | 1 | Lookback window in days. |
 | `threshold` | Float | No | 0.5 | Sentiment change threshold to flag as anomaly. |
 
 **Example Request**:
 ```
-GET /anomalies?hours=12&threshold=0.6
+GET /anomalies?days=1&threshold=0.6
 ```
 
 **Caching Logic**:
-- Cache Key: `anomalies:{hours}:{threshold}`.
-- Cache TTL: **1 hour** (data refreshes hourly).
+- Cache Key: `anomalies:{days}:{threshold}`.
+- Cache TTL: **6 hours (21600 seconds)**.
 
 **Response Body (JSON)**:
 
 ```json
 {
-  "lookback_hours": 12,
+  "lookback_days": 12,
   "anomalies": [
     {
       "article_id": "abc123",

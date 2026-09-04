@@ -1,0 +1,3 @@
+-r requirements-scraper.txt
+-r requirements-api.txt
+-r requirements.txt

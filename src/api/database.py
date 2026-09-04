@@ -57,7 +57,7 @@ def query_predict(company: str, days: int) -> dict:
         ROUND(AVG(sentiment_score), 4) AS avg_sentiment,
         COUNT(*) AS article_count
     FROM `{table_id}`
-    WHERE LOWER(company_entity) = LOWER(@company)
+    WHERE LOWER(title) LIKE CONCAT('%', LOWER(@company), '%')
         AND publish_date >= DATE_SUB(CURRENT_DATE(), INTERVAL @days DAY)
     GROUP BY publish_date
     ORDER BY publish_date ASC
@@ -90,7 +90,7 @@ def query_predict(company: str, days: int) -> dict:
         ROUND(sentiment_score, 4) AS sentiment,
         url
     FROM `{table_id}`
-    WHERE LOWER(company_entity) = LOWER(@company)
+    WHERE LOWER(title) LIKE CONCAT('%', LOWER(@company), '%')
     ORDER BY publish_date DESC
     LIMIT 5
     """
@@ -129,7 +129,7 @@ def query_predict(company: str, days: int) -> dict:
 # Query: /anomalies
 # ============================================================
 
-def query_anomalies(hours: int, threshold: float) -> list[dict]:
+def query_anomalies(days: int, threshold: float) -> list[dict]:
     """
     Find articles with extreme sentiment shifts in the lookback window.
     """
@@ -175,14 +175,14 @@ def query_anomalies(hours: int, threshold: float) -> list[dict]:
         article_count
     FROM with_shift
     WHERE sentiment_shift >= @threshold
-        AND publish_date >= DATE_SUB(CURRENT_DATE(), INTERVAL @hours HOUR)
+        AND publish_date >= DATE_SUB(CURRENT_DATE(), INTERVAL @days DAY)
     ORDER BY sentiment_shift DESC
     LIMIT 50
     """
 
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
-            bigquery.ScalarQueryParameter("hours", "INT64", hours),
+            bigquery.ScalarQueryParameter("days", "INT64", days),
             bigquery.ScalarQueryParameter("threshold", "FLOAT64", threshold),
         ]
     )
@@ -203,7 +203,7 @@ def query_anomalies(hours: int, threshold: float) -> list[dict]:
 
     logger.info(
         "Anomalies query completed",
-        hours=hours,
+        days=days,
         threshold=threshold,
         anomalies_found=len(anomalies),
     )
@@ -232,7 +232,7 @@ def fetch_articles_for_company(company: str, days: int, null_only: bool = True) 
         model_input_text,
         sentiment_score
     FROM `{table_id}`
-    WHERE LOWER(company_entity) = LOWER(@company)
+    WHERE LOWER(title) LIKE CONCAT('%', LOWER(@company), '%')
         AND publish_date >= DATE_SUB(CURRENT_DATE(), INTERVAL @days DAY)
         {null_filter}
     """

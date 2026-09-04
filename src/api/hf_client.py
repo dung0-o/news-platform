@@ -12,7 +12,7 @@ logger = structlog.get_logger(__name__)
 HF_BASE_URL = "https://router.huggingface.co/hf-inference/models"
 
 
-def query_sentiment(text: str) -> dict | None:
+def query_sentiment(text: str) -> float | None:
     """Call Hugging Face inference API and return sentiment score.
 
     Returns the model's output as a float between -1 and 1.

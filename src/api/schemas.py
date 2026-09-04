@@ -21,7 +21,7 @@ class PredictResponse(BaseModel):
 class AnomalyResponse(BaseModel):
     """Response body for the /anomalies endpoint."""
 
-    lookback_hours: int
+    lookback_days: int
     threshold: float
     anomalies: list[dict[str, object]] = []
 

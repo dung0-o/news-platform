@@ -1,0 +1,15 @@
+# Streamlit
+streamlit>=1.30.0
+
+# HTTP client
+requests>=2.31.0
+
+# Charts
+plotly>=5.18.0
+
+# Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# BigQuery
+google-cloud-bigquery>=3.18.0
